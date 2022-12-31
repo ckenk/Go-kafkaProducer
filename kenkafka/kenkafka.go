@@ -6,37 +6,30 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
-func ProduceRecentChange(recentChange []byte) {
-
+func CreateProducer() *kafka.Producer {
 	//assuming kafka running locally with default settings
 	p, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": "localhost"})
 	if err != nil {
+		fmt.Printf("Failed to create producer: %s\n", err)
 		panic(err)
 	}
+	return p
+}
 
-	defer p.Close()
+func ProduceRecentChange(p *kafka.Producer, recentChange []byte) {
 
-	// Delivery report handler for produced messages
-	go func() {
-		for e := range p.Events() {
-			switch ev := e.(type) {
-			case *kafka.Message:
-				if ev.TopicPartition.Error != nil {
-					fmt.Printf("Delivery failed: %v\n", ev.TopicPartition)
-				} else {
-					fmt.Printf("Delivered message to %v\n", ev.TopicPartition)
-				}
-			}
-		}
-	}()
-
-	// Produce messages to topic (asynchronously)
+	// Produce messages to a topic (asynchronously)
 	topic := "wikimedia.recentchange"
 	p.Produce(&kafka.Message{
 		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 		Value:          recentChange,
 	}, nil)
 
-	// Wait for message deliveries before shutting down
-	p.Flush(15 * 1000)
+	// Wait for message deliveries
+	p.Flush(500)
+}
+
+func TerminateProducer(p *kafka.Producer) {
+	fmt.Printf("Closing the producer %v", p)
+	p.Close()
 }
